@@ -194,6 +194,10 @@ namespace pugi
 #	include <stdint.h>
 #endif
 
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfloat-equal"
+#endif
 // Memory allocation
 PUGI_IMPL_NS_BEGIN
 	PUGI_IMPL_FN void* default_allocate(size_t size)
@@ -8428,6 +8432,8 @@ PUGI_IMPL_NS_BEGIN
 		return !!_isnan(value);
 	#elif defined(fpclassify) && defined(FP_NAN)
 		return fpclassify(value) == FP_NAN;
+    #elif __cplusplus >= 201103L
+        return isnan(value);
 	#else
 		// fallback
 		const volatile double v = value;
@@ -8456,12 +8462,17 @@ PUGI_IMPL_NS_BEGIN
 		default:
 			return 0;
 		}
+    #elif __cplusplus >= 201103L
+        if (value == 0.0) return PUGIXML_TEXT("0");
+        if (isnan(value)) return PUGIXML_TEXT("NaN");
+        if (isinf(value)) return value >= 0.0 ? PUGIXML_TEXT("Infinity") : PUGIXML_TEXT("-Infinity");
+        return PUGIXML_NULL;
 	#else
 		// fallback
 		const volatile double v = value;
 
 		if (v == 0) return PUGIXML_TEXT("0");
-		if (v != v) return PUGIXML_TEXT("NaN");
+		if (is_nan(v)) return PUGIXML_TEXT("NaN");
 		if (v * 2 == v) return value > 0 ? PUGIXML_TEXT("Infinity") : PUGIXML_TEXT("-Infinity");
 		return PUGIXML_NULL;
 	#endif
@@ -8469,7 +8480,7 @@ PUGI_IMPL_NS_BEGIN
 
 	PUGI_IMPL_FN bool convert_number_to_boolean(double value)
 	{
-		return (value != 0 && !is_nan(value));
+		return (value != 0.0 && !is_nan(value));
 	}
 
 	PUGI_IMPL_FN void truncate_zeros(char* begin, char* end)
@@ -10771,14 +10782,14 @@ PUGI_IMPL_NS_BEGIN
 			{
 				double r = _left->eval_number(c, stack);
 
-				return r == r ? floor(r) : r;
+				return is_nan(r) ? floor(r) : r;
 			}
 
 			case ast_func_ceiling:
 			{
 				double r = _left->eval_number(c, stack);
 
-				return r == r ? ceil(r) : r;
+				return is_nan(r) ? ceil(r) : r;
 			}
 
 			case ast_func_round:
@@ -13177,6 +13188,10 @@ namespace pugi
 
 #if defined(_MSC_VER) && defined(__c2__)
 #	pragma clang diagnostic pop
+#endif
+
+#if defined (__GNUC__)
+#pragma GCC diagnostic pop
 #endif
 
 // Undefine all local macros (makes sure we're not leaking macros in header-only mode)
